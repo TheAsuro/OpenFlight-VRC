@@ -237,6 +237,9 @@ namespace OpenFlightVRC
 		/// <summary> If true, the player is currently gliding. </summary>
 		public bool isGliding = false; // Has arms out while flying
 
+        /// <summary> The direction a wind trigger is pushing then player in </summary>
+        public OpenFlightWind[] windTriggers;
+
 		/// <summary>
 		/// If >0, disables flight then decreases itself by one
 		/// </summary>
@@ -255,6 +258,7 @@ namespace OpenFlightVRC
 		private Vector3 targetVelocity; // tmp var, usually associated with slerping/lerping
 		private float downThrust = 0f;
 		private float flapAirFriction = 0.04f; // Prevents the gain of infinite speed while flapping. Set to 0 to remove this feature. THIS IS NOT A MAX SPEED
+        private Vector3 currentWindVelocity = Vector3.zero;
 
 		// Variables related to gliding
 		internal Vector3 wingDirection;
@@ -491,6 +495,8 @@ namespace OpenFlightVRC
 				FlyTick(fixedDeltaTime);
 			}
 
+            WindTick(fixedDeltaTime);
+
 			RHPosLast = RHPos;
 			LHPosLast = LHPos;
 
@@ -502,8 +508,8 @@ namespace OpenFlightVRC
 
 			if (setFinalVelocity)
 			{
-				// Hard cap velocity to prevent lag abuse
-				finalVelocity = Vector3.ClampMagnitude(finalVelocity, 2000);
+				// Apply wind and hard cap velocity to prevent lag abuse
+				finalVelocity = Vector3.ClampMagnitude(finalVelocity + currentWindVelocity, 2000);
 				LocalPlayer.SetVelocity(finalVelocity);
 			}
 		}
@@ -648,6 +654,19 @@ namespace OpenFlightVRC
 				isFlapping = false;
 			}
 		}
+
+        private void WindTick(float dt)
+        {
+            currentWindVelocity = Vector3.zero;
+            if (isFlying)
+            {
+                for (int i = 0; i < windTriggers.Length; ++i)
+                {
+                    currentWindVelocity += windTriggers[i].GetCurrentForce();
+                }
+            }
+            currentWindVelocity *= dt;
+        }
 
 		public void FixedUpdate()
 		{
@@ -982,5 +1001,13 @@ Velocity: {8}",
 				return new DataToken(0);
 			}
 		}
+
+        // This finds all UdonSharpWind instances in the editor so we can store them.
+    #if !COMPILER_UDONSHARP && UNITY_EDITOR
+        public void OnValidate()
+        {
+            windTriggers = FindObjectsOfType<OpenFlightWind>(true);
+        }
+    #endif
 	}
 }
